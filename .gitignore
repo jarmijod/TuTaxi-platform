@@ -9,3 +9,7 @@ dist/
 coverage/
 *.log
 .turbo/
+uploads/
+prisma/seed.js
+prisma/seed.d.ts
+prisma/seed.js.map
