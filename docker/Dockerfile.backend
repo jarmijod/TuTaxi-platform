@@ -3,12 +3,13 @@ RUN apk add --no-cache libc6-compat openssl
 
 WORKDIR /app
 
-COPY apps/backend/package.json ./
+COPY apps/backend/package.json apps/backend/package-lock.json* ./
 RUN npm install
 
 COPY apps/backend/ ./
+RUN rm -f tsconfig.tsbuildinfo
 RUN npx prisma generate
-RUN npm run build
+RUN npx nest build && ls dist/main.js
 
 FROM node:20-alpine AS runner
 RUN apk add --no-cache libc6-compat openssl netcat-openbsd
