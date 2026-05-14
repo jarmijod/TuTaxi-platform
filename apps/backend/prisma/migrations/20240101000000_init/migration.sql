@@ -1,7 +1,8 @@
--- CreateEnum
+-- CreateEnums
 CREATE TYPE "UserStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING_VERIFICATION');
 CREATE TYPE "DriverStatus" AS ENUM ('AVAILABLE', 'BUSY', 'OFFLINE');
 CREATE TYPE "VehicleStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'MAINTENANCE');
+CREATE TYPE "RideStatus" AS ENUM ('SEARCHING_DRIVER', 'DRIVER_ASSIGNED', 'DRIVER_ARRIVING', 'WAITING_PASSENGER', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED');
 
 -- CreateTable roles
 CREATE TABLE "roles" (
@@ -96,6 +97,54 @@ CREATE TABLE "vehicles" (
     CONSTRAINT "vehicles_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable rides
+CREATE TABLE "rides" (
+    "id" TEXT NOT NULL,
+    "origin_address" TEXT NOT NULL,
+    "destination_address" TEXT NOT NULL,
+    "origin_lat" DOUBLE PRECISION NOT NULL,
+    "origin_lng" DOUBLE PRECISION NOT NULL,
+    "destination_lat" DOUBLE PRECISION NOT NULL,
+    "destination_lng" DOUBLE PRECISION NOT NULL,
+    "distance" DOUBLE PRECISION,
+    "duration" INTEGER,
+    "price" DOUBLE PRECISION,
+    "status" "RideStatus" NOT NULL DEFAULT 'SEARCHING_DRIVER',
+    "cancel_reason" TEXT,
+    "requested_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "accepted_at" TIMESTAMP(3),
+    "started_at" TIMESTAMP(3),
+    "completed_at" TIMESTAMP(3),
+    "cancelled_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "client_id" TEXT NOT NULL,
+    "driver_id" TEXT,
+    CONSTRAINT "rides_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable ride_locations
+CREATE TABLE "ride_locations" (
+    "id" TEXT NOT NULL,
+    "latitude" DOUBLE PRECISION NOT NULL,
+    "longitude" DOUBLE PRECISION NOT NULL,
+    "speed" DOUBLE PRECISION,
+    "heading" DOUBLE PRECISION,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "ride_id" TEXT NOT NULL,
+    "driver_id" TEXT NOT NULL,
+    CONSTRAINT "ride_locations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable ride_status_history
+CREATE TABLE "ride_status_history" (
+    "id" TEXT NOT NULL,
+    "status" "RideStatus" NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "ride_id" TEXT NOT NULL,
+    CONSTRAINT "ride_status_history_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndexes
 CREATE UNIQUE INDEX "roles_name_key" ON "roles"("name");
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
@@ -111,8 +160,13 @@ ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_user_id_fkey" FOREIG
 ALTER TABLE "devices" ADD CONSTRAINT "devices_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "drivers" ADD CONSTRAINT "drivers_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "vehicles" ADD CONSTRAINT "vehicles_driver_id_fkey" FOREIGN KEY ("driver_id") REFERENCES "drivers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "rides" ADD CONSTRAINT "rides_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "rides" ADD CONSTRAINT "rides_driver_id_fkey" FOREIGN KEY ("driver_id") REFERENCES "drivers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "ride_locations" ADD CONSTRAINT "ride_locations_ride_id_fkey" FOREIGN KEY ("ride_id") REFERENCES "rides"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ride_locations" ADD CONSTRAINT "ride_locations_driver_id_fkey" FOREIGN KEY ("driver_id") REFERENCES "drivers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ride_status_history" ADD CONSTRAINT "ride_status_history_ride_id_fkey" FOREIGN KEY ("ride_id") REFERENCES "rides"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- Seed default roles
+-- Seed roles
 INSERT INTO "roles" ("id", "name", "permissions", "updated_at") VALUES
   (gen_random_uuid(), 'ADMIN', ARRAY['*'], NOW()),
   (gen_random_uuid(), 'CLIENT', ARRAY['trips:create', 'trips:read', 'profile:update'], NOW()),

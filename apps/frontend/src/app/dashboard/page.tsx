@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useAuthStore } from '@/store/auth.store';
 import { useLogout } from '@/hooks/use-auth';
 
@@ -18,10 +19,7 @@ export default function DashboardPage() {
             </div>
             <span className="text-xl font-bold text-white">TuTaxi</span>
           </div>
-          <button
-            onClick={() => logout()}
-            className="text-gray-400 hover:text-white transition-colors text-sm"
-          >
+          <button onClick={() => logout()} className="text-gray-400 hover:text-white transition-colors text-sm">
             Cerrar sesión
           </button>
         </div>
@@ -35,9 +33,7 @@ export default function DashboardPage() {
               </span>
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">
-                Hola, {user?.firstName} 👋
-              </h1>
+              <h1 className="text-2xl font-bold text-white">Hola, {user?.firstName} 👋</h1>
               <p className="text-gray-400">
                 {user?.role?.name === 'DRIVER' ? 'Conductor' : user?.role?.name === 'ADMIN' ? 'Administrador' : 'Pasajero'}
               </p>
@@ -45,45 +41,39 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="glass rounded-xl p-6">
-            <p className="text-gray-400 text-sm">Estado</p>
-            <p className="text-white text-lg font-semibold mt-1">
-              <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-2" />
-              {user?.status === 'ACTIVE' ? 'Activo' : 'Pendiente'}
-            </p>
-          </div>
-          <div className="glass rounded-xl p-6">
-            <p className="text-gray-400 text-sm">Rol</p>
-            <p className="text-white text-lg font-semibold mt-1">{user?.role?.name}</p>
-          </div>
-          <div className="glass rounded-xl p-6">
-            <p className="text-gray-400 text-sm">Email verificado</p>
-            <p className="text-white text-lg font-semibold mt-1">
-              {user?.status === 'ACTIVE' ? '✅ Sí' : '⏳ Pendiente'}
-            </p>
-          </div>
-        </div>
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <Link href="/request-ride" className="glass rounded-2xl p-6 hover:bg-white/10 transition-all group">
+            <span className="text-3xl">🚕</span>
+            <h3 className="text-white font-semibold mt-3 group-hover:text-primary-400 transition-colors">
+              Solicitar Viaje
+            </h3>
+            <p className="text-gray-400 text-sm mt-1">Pide un taxi ahora</p>
+          </Link>
 
-        {/* Info Card */}
-        <div className="glass rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">Información de la cuenta</h2>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-gray-400">Email</span>
-              <span className="text-white">{user?.email}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Teléfono</span>
-              <span className="text-white">{user?.phone || 'No registrado'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Miembro desde</span>
-              <span className="text-white">
-                {new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long' })}
-              </span>
-            </div>
+          <Link href="/history" className="glass rounded-2xl p-6 hover:bg-white/10 transition-all group">
+            <span className="text-3xl">📋</span>
+            <h3 className="text-white font-semibold mt-3 group-hover:text-primary-400 transition-colors">
+              Historial
+            </h3>
+            <p className="text-gray-400 text-sm mt-1">Ver viajes anteriores</p>
+          </Link>
+
+          <Link href="/profile" className="glass rounded-2xl p-6 hover:bg-white/10 transition-all group">
+            <span className="text-3xl">👤</span>
+            <h3 className="text-white font-semibold mt-3 group-hover:text-primary-400 transition-colors">
+              Mi Perfil
+            </h3>
+            <p className="text-gray-400 text-sm mt-1">Editar información</p>
+          </Link>
+
+          <div className="glass rounded-2xl p-6">
+            <span className="text-3xl">📊</span>
+            <h3 className="text-white font-semibold mt-3">Estado</h3>
+            <p className="text-gray-400 text-sm mt-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1" />
+              {user?.status === 'ACTIVE' ? 'Activo' : 'Pendiente verificación'}
+            </p>
           </div>
         </div>
       </div>

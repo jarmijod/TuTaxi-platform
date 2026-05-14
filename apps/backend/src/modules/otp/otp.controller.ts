@@ -1,15 +1,23 @@
 import { Controller, Post, Body, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
+import { IsString } from 'class-validator';
 import { OtpService } from './otp.service';
 import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 import { CurrentUser } from '../../decorators/current-user.decorator';
 
 class SendOtpDto {
+  @ApiProperty({ example: '+34600000000' })
+  @IsString()
   phone: string;
 }
 
 class VerifyOtpDto {
+  @ApiProperty({ example: '+34600000000' })
+  @IsString()
   phone: string;
+
+  @ApiProperty({ example: '123456' })
+  @IsString()
   code: string;
 }
 

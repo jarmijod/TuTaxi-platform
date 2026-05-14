@@ -12,6 +12,11 @@ import { DevicesModule } from './modules/devices/devices.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { DriversModule } from './modules/drivers/drivers.module';
 import { VehiclesModule } from './modules/vehicles/vehicles.module';
+import { RidesModule } from './modules/rides/rides.module';
+import { TrackingModule } from './modules/tracking/tracking.module';
+import { SocketsModule } from './modules/sockets/sockets.module';
+import { PricingModule } from './modules/pricing/pricing.module';
+import { MatchingModule } from './modules/matching/matching.module';
 
 @Module({
   imports: [
@@ -27,9 +32,12 @@ import { VehiclesModule } from './modules/vehicles/vehicles.module';
     UploadModule,
     DriversModule,
     VehiclesModule,
+    RidesModule,
+    TrackingModule,
+    SocketsModule,
+    PricingModule,
+    MatchingModule,
   ],
-  providers: [
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
-  ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

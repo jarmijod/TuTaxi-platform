@@ -26,6 +26,16 @@ enum VehicleStatus {
   MAINTENANCE
 }
 
+enum RideStatus {
+  SEARCHING_DRIVER
+  DRIVER_ASSIGNED
+  DRIVER_ARRIVING
+  WAITING_PASSENGER
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
 model Role {
   id          String   @id @default(uuid())
   name        String   @unique
@@ -58,6 +68,7 @@ model User {
   driver        Driver?
   refreshTokens RefreshToken[]
   devices       Device[]
+  ridesAsClient Ride[]         @relation("ClientRides")
 
   @@map("users")
 }
@@ -114,7 +125,9 @@ model Driver {
   userId String @unique @map("user_id")
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  vehicles Vehicle[]
+  vehicles      Vehicle[]
+  rides         Ride[]
+  rideLocations RideLocation[]
 
   @@map("drivers")
 }
@@ -135,4 +148,65 @@ model Vehicle {
   driver   Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
 
   @@map("vehicles")
+}
+
+model Ride {
+  id                 String     @id @default(uuid())
+  originAddress      String     @map("origin_address")
+  destinationAddress String     @map("destination_address")
+  originLat          Float      @map("origin_lat")
+  originLng          Float      @map("origin_lng")
+  destinationLat     Float      @map("destination_lat")
+  destinationLng     Float      @map("destination_lng")
+  distance           Float?
+  duration           Int?
+  price              Float?
+  status             RideStatus @default(SEARCHING_DRIVER)
+  cancelReason       String?    @map("cancel_reason")
+  requestedAt        DateTime   @default(now()) @map("requested_at")
+  acceptedAt         DateTime?  @map("accepted_at")
+  startedAt          DateTime?  @map("started_at")
+  completedAt        DateTime?  @map("completed_at")
+  cancelledAt        DateTime?  @map("cancelled_at")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+
+  clientId String @map("client_id")
+  client   User   @relation("ClientRides", fields: [clientId], references: [id])
+
+  driverId String? @map("driver_id")
+  driver   Driver? @relation(fields: [driverId], references: [id])
+
+  locations     RideLocation[]
+  statusHistory RideStatusHistory[]
+
+  @@map("rides")
+}
+
+model RideLocation {
+  id        String   @id @default(uuid())
+  latitude  Float
+  longitude Float
+  speed     Float?
+  heading   Float?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  rideId String @map("ride_id")
+  ride   Ride   @relation(fields: [rideId], references: [id], onDelete: Cascade)
+
+  driverId String @map("driver_id")
+  driver   Driver @relation(fields: [driverId], references: [id])
+
+  @@map("ride_locations")
+}
+
+model RideStatusHistory {
+  id        String     @id @default(uuid())
+  status    RideStatus
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  rideId String @map("ride_id")
+  ride   Ride   @relation(fields: [rideId], references: [id], onDelete: Cascade)
+
+  @@map("ride_status_history")
 }
