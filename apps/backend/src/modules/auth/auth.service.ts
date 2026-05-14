@@ -139,14 +139,11 @@ export class AuthService {
         data: { revoked: true },
       });
     } else {
-      // Revoke all tokens
       await this.prisma.refreshToken.updateMany({
         where: { userId, revoked: false },
         data: { revoked: true },
       });
     }
-    // Blacklist access token in Redis (15min TTL)
-    await this.redis.set(`blacklist:${userId}`, '1', 900);
   }
 
   async getProfile(userId: string) {
