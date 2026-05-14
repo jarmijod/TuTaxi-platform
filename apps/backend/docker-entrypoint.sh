@@ -17,5 +17,8 @@ echo "✅ PostgreSQL is ready"
 echo "🔄 Running migrations..."
 npx prisma migrate deploy
 
+echo "🌱 Running seed..."
+node prisma/seed.js 2>/dev/null || echo "  Seed already applied or skipped"
+
 echo "🚀 Starting backend..."
 node dist/main.js

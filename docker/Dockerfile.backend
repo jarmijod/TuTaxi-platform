@@ -10,6 +10,7 @@ COPY apps/backend/ ./
 RUN rm -f tsconfig.tsbuildinfo
 RUN npx prisma generate
 RUN npx nest build && ls dist/main.js
+RUN npx tsc prisma/seed.ts --outDir prisma --esModuleInterop --skipLibCheck --resolveJsonModule 2>/dev/null || true
 
 FROM node:20-alpine AS runner
 RUN apk add --no-cache libc6-compat openssl netcat-openbsd

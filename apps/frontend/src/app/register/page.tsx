@@ -15,7 +15,8 @@ export default function RegisterPage() {
   } = useForm<RegisterFormData>({ resolver: zodResolver(registerSchema) });
 
   const onSubmit = (data: RegisterFormData) => {
-    const { confirmPassword, ...payload } = data;
+    const { confirmPassword, phone, ...rest } = data;
+    const payload = { ...rest, ...(phone ? { phone } : {}) };
     registerUser(payload);
   };
 

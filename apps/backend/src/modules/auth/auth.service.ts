@@ -30,8 +30,10 @@ export class AuthService {
     const existingEmail = await this.usersService.findByEmail(dto.email);
     if (existingEmail) throw new ConflictException('Email already registered');
 
-    if (dto.phone) {
-      const existingPhone = await this.usersService.findByPhone(dto.phone);
+    const phone = dto.phone || null;
+
+    if (phone) {
+      const existingPhone = await this.usersService.findByPhone(phone);
       if (existingPhone) throw new ConflictException('Phone already registered');
     }
 
@@ -44,25 +46,33 @@ export class AuthService {
       });
     }
 
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        password: hashedPassword,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        phone: dto.phone,
-        roleId: role.id,
-      },
-      include: { role: true },
-    });
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          email: dto.email,
+          password: hashedPassword,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          phone,
+          roleId: role.id,
+        },
+        include: { role: true },
+      });
 
-    const tokens = await this.generateTokens(user.id, user.email, role.name);
-    await this.saveRefreshToken(user.id, tokens.refreshToken);
+      const tokens = await this.generateTokens(user.id, user.email, role.name);
+      await this.saveRefreshToken(user.id, tokens.refreshToken);
 
-    return {
-      user: this.sanitizeUser(user),
-      ...tokens,
-    };
+      return {
+        user: this.sanitizeUser(user),
+        ...tokens,
+      };
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        const field = error.meta?.target?.[0] || 'field';
+        throw new ConflictException(`${field} already exists`);
+      }
+      throw error;
+    }
   }
 
   async login(dto: LoginDto, ip?: string, userAgent?: string) {
