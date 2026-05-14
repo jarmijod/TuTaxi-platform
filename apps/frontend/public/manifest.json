@@ -1,0 +1,9 @@
+{
+  "name": "TuTaxi",
+  "short_name": "TuTaxi",
+  "description": "Plataforma de reservas de taxi",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#0ea5e9"
+}
