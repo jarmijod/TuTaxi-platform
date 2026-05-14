@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "TuTaxi",
+    "slug": "tu-taxi",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "tutaxi",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0d1117"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tutaxi.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0d1117"
+      },
+      "package": "com.tutaxi.app"
+    },
+    "plugins": ["expo-router"]
+  }
+}

@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleType {
+  ADMIN
+  USER
+  DRIVER
+}
+
+enum DriverStatus {
+  AVAILABLE
+  BUSY
+  OFFLINE
+}
+
+enum VehicleStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String   @map("first_name")
+  lastName  String   @map("last_name")
+  phone     String?  @unique
+  avatar    String?
+  isActive  Boolean  @default(true) @map("is_active")
+  role      RoleType @default(USER)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  driver Driver?
+
+  @@map("users")
+}
+
+model Driver {
+  id            String       @id @default(uuid())
+  licenseNumber String       @unique @map("license_number")
+  status        DriverStatus @default(OFFLINE)
+  rating        Float        @default(5.0)
+  totalTrips    Int          @default(0) @map("total_trips")
+  isVerified    Boolean      @default(false) @map("is_verified")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  vehicles Vehicle[]
+
+  @@map("drivers")
+}
+
+model Vehicle {
+  id           String        @id @default(uuid())
+  brand        String
+  model        String
+  year         Int
+  color        String
+  plateNumber  String        @unique @map("plate_number")
+  status       VehicleStatus @default(ACTIVE)
+  capacity     Int           @default(4)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  driverId String @map("driver_id")
+  driver   Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@map("vehicles")
+}
