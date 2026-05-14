@@ -1,23 +1,27 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { RegisterDto } from '../auth/dto/register.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(data: RegisterDto & { password: string }) {
-    return this.prisma.user.create({ data });
+  async findByEmail(email: string) {
+    return this.prisma.user.findUnique({ where: { email }, include: { role: true } });
   }
 
-  async findByEmail(email: string) {
-    return this.prisma.user.findUnique({ where: { email } });
+  async findByPhone(phone: string) {
+    return this.prisma.user.findUnique({ where: { phone } });
   }
 
   async findById(id: string) {
-    const user = await this.prisma.user.findUnique({ where: { id } });
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: { role: true, driver: true },
+    });
     if (!user) throw new NotFoundException('User not found');
-    return user;
+    const { password, ...rest } = user;
+    return rest;
   }
 
   async findAll(page = 1, limit = 10) {
@@ -31,13 +35,41 @@ export class UsersService {
           firstName: true,
           lastName: true,
           phone: true,
+          avatar: true,
+          status: true,
+          emailVerified: true,
+          phoneVerified: true,
           role: true,
-          isActive: true,
           createdAt: true,
         },
       }),
       this.prisma.user.count(),
     ]);
     return { users, total, page, totalPages: Math.ceil(total / limit) };
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: dto,
+      include: { role: true },
+    });
+    const { password, ...rest } = user;
+    return rest;
+  }
+
+  async updateAvatar(userId: string, avatarPath: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { avatar: avatarPath },
+      select: { id: true, avatar: true },
+    });
+  }
+
+  async verifyPhone(userId: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { phoneVerified: true, status: 'ACTIVE' },
+    });
   }
 }

@@ -7,10 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum RoleType {
-  ADMIN
-  USER
-  DRIVER
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
 }
 
 enum DriverStatus {
@@ -25,27 +26,84 @@ enum VehicleStatus {
   MAINTENANCE
 }
 
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  firstName String   @map("first_name")
-  lastName  String   @map("last_name")
-  phone     String?  @unique
-  avatar    String?
-  isActive  Boolean  @default(true) @map("is_active")
-  role      RoleType @default(USER)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  permissions String[] @default([])
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  driver Driver?
+  users User[]
+
+  @@map("roles")
+}
+
+model User {
+  id            String     @id @default(uuid())
+  email         String     @unique
+  password      String
+  firstName     String     @map("first_name")
+  lastName      String     @map("last_name")
+  phone         String?    @unique
+  avatar        String?
+  status        UserStatus @default(PENDING_VERIFICATION)
+  emailVerified Boolean    @default(false) @map("email_verified")
+  phoneVerified Boolean    @default(false) @map("phone_verified")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  roleId String @map("role_id")
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  driver        Driver?
+  refreshTokens RefreshToken[]
+  devices       Device[]
 
   @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model OtpCode {
+  id        String   @id @default(uuid())
+  phone     String
+  code      String
+  expiresAt DateTime @map("expires_at")
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("otp_codes")
+}
+
+model Device {
+  id         String   @id @default(uuid())
+  deviceName String   @map("device_name")
+  ip         String?
+  userAgent  String?  @map("user_agent")
+  lastLogin  DateTime @default(now()) @map("last_login")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("devices")
 }
 
 model Driver {
   id            String       @id @default(uuid())
   licenseNumber String       @unique @map("license_number")
+  licenseImage  String?      @map("license_image")
   status        DriverStatus @default(OFFLINE)
   rating        Float        @default(5.0)
   totalTrips    Int          @default(0) @map("total_trips")
@@ -62,16 +120,16 @@ model Driver {
 }
 
 model Vehicle {
-  id           String        @id @default(uuid())
-  brand        String
-  model        String
-  year         Int
-  color        String
-  plateNumber  String        @unique @map("plate_number")
-  status       VehicleStatus @default(ACTIVE)
-  capacity     Int           @default(4)
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
+  id          String        @id @default(uuid())
+  brand       String
+  model       String
+  year        Int
+  color       String
+  plateNumber String        @unique @map("plate_number")
+  status      VehicleStatus @default(ACTIVE)
+  capacity    Int           @default(4)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
 
   driverId String @map("driver_id")
   driver   Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)

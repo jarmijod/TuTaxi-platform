@@ -1,15 +1,28 @@
-import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Pressable, Alert } from 'react-native';
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { theme } from '@/theme';
+import { useAuthStore } from '@/store/auth.store';
+import { authApi } from '@/services/api';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { setAuth } = useAuthStore();
 
-  const handleLogin = () => {
-    // TODO: Implement auth logic
-    router.replace('/home');
+  const handleLogin = async () => {
+    if (!email || !password) return;
+    setLoading(true);
+    try {
+      const data = await authApi.login(email, password);
+      setAuth(data.user, data.accessToken, data.refreshToken);
+      router.replace('/home');
+    } catch (err: any) {
+      Alert.alert('Error', err?.response?.data?.message || 'Error al iniciar sesión');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -38,8 +51,18 @@ export default function LoginScreen() {
           secureTextEntry
         />
 
-        <Pressable style={styles.button} onPress={handleLogin}>
-          <Text style={styles.buttonText}>Iniciar Sesión</Text>
+        <Pressable
+          style={[styles.button, loading && styles.buttonDisabled]}
+          onPress={handleLogin}
+          disabled={loading}
+        >
+          <Text style={styles.buttonText}>
+            {loading ? 'Iniciando...' : 'Iniciar Sesión'}
+          </Text>
+        </Pressable>
+
+        <Pressable onPress={() => router.push('/register')}>
+          <Text style={styles.link}>¿No tienes cuenta? Regístrate</Text>
         </Pressable>
       </View>
     </View>
@@ -53,22 +76,10 @@ const styles = StyleSheet.create({
     padding: theme.spacing.xl,
     justifyContent: 'center',
   },
-  header: {
-    marginBottom: theme.spacing.xxl,
-  },
-  title: {
-    color: theme.colors.text,
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
-  subtitle: {
-    color: theme.colors.textSecondary,
-    fontSize: 16,
-    marginTop: theme.spacing.xs,
-  },
-  form: {
-    gap: theme.spacing.md,
-  },
+  header: { marginBottom: theme.spacing.xxl },
+  title: { color: theme.colors.text, fontSize: 28, fontWeight: 'bold' },
+  subtitle: { color: theme.colors.textSecondary, fontSize: 16, marginTop: theme.spacing.xs },
+  form: { gap: theme.spacing.md },
   input: {
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
@@ -85,9 +96,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: theme.spacing.sm,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  buttonDisabled: { opacity: 0.5 },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  link: {
+    color: theme.colors.primary,
+    textAlign: 'center',
+    marginTop: theme.spacing.md,
+    fontSize: 14,
   },
 });
