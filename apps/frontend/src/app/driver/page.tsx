@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 import { useAuthStore } from '@/store/auth.store';
 import { useSocket } from '@/hooks/use-socket';
 import { driverService } from '@/services/driver.service';
+import { authService } from '@/services/auth.service';
 
 const Map = dynamic(() => import('@/components/map/map').then((m) => m.Map), { ssr: false });
 
@@ -31,53 +31,51 @@ export default function DriverPage() {
   const [incomingRide, setIncomingRide] = useState<any>(null);
   const [activeRide, setActiveRide] = useState<any>(null);
   const [driverId, setDriverId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const watchRef = useRef<number | null>(null);
   const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Verificar autenticación y rol
+  // Cargar perfil y obtener driverId
   useEffect(() => {
     if (!isAuthenticated) { router.replace('/login'); return; }
-    if (user?.role?.name !== 'DRIVER') { router.replace('/dashboard'); return; }
-  }, [isAuthenticated, user, router]);
 
-  // Obtener driverId del perfil
-  const { data: profile } = useQuery({
-    queryKey: ['driver-profile'],
-    queryFn: () => driverService.getActiveRide(),
-    enabled: isAuthenticated && user?.role?.name === 'DRIVER',
-  });
-
-  useEffect(() => {
-    // Buscar driverId desde el user
-    if (user?.driver?.id) {
-      setDriverId(user.driver.id);
-    }
-  }, [user]);
+    const loadProfile = async () => {
+      try {
+        const profile = await authService.getProfile();
+        if (profile.role?.name !== 'DRIVER') {
+          router.replace('/dashboard');
+          return;
+        }
+        if (profile.driver?.id) {
+          setDriverId(profile.driver.id);
+        }
+      } catch {
+        router.replace('/login');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadProfile();
+  }, [isAuthenticated, router]);
 
   // Escuchar solicitudes de viaje via Socket
   useEffect(() => {
     if (!socket) return;
-
-    socket.on('ride:requested', (data: any) => {
+    const handler = (data: any) => {
       if (driverState === 'available') {
         setIncomingRide(data);
       }
-    });
-
-    return () => {
-      socket.off('ride:requested');
     };
+    socket.on('ride:requested', handler);
+    return () => { socket.off('ride:requested', handler); };
   }, [socket, driverState]);
 
-  // GPS tracking continuo
+  // GPS tracking
   const startTracking = useCallback(() => {
     if (!navigator.geolocation) return;
-
     watchRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        setCurrentLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-      },
+      (pos) => setCurrentLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       null,
       { enableHighAccuracy: true, maximumAge: 5000 },
     );
@@ -94,35 +92,24 @@ export default function DriverPage() {
     }
   };
 
-  // Enviar ubicación al servidor cada 5 segundos
+  // Enviar ubicación cada 5s
   useEffect(() => {
-    if (driverState !== 'offline' && driverId && currentLocation) {
-      locationIntervalRef.current = setInterval(() => {
-        if (currentLocation) {
-          driverService.updateLocation(driverId, currentLocation.lat, currentLocation.lng);
-          // Emitir por socket si hay viaje activo
-          if (activeRide && socket) {
-            socket.emit('driver:location', {
-              rideId: activeRide.id,
-              lat: currentLocation.lat,
-              lng: currentLocation.lng,
-            });
-          }
-        }
-      }, 5000);
-    }
+    if (driverState === 'offline' || !driverId || !currentLocation) return;
 
-    return () => {
-      if (locationIntervalRef.current) clearInterval(locationIntervalRef.current);
-    };
+    locationIntervalRef.current = setInterval(() => {
+      driverService.updateLocation(driverId, currentLocation.lat, currentLocation.lng);
+      if (activeRide && socket) {
+        socket.emit('driver:location', { rideId: activeRide.id, lat: currentLocation.lat, lng: currentLocation.lng });
+      }
+    }, 5000);
+
+    return () => { if (locationIntervalRef.current) clearInterval(locationIntervalRef.current); };
   }, [driverState, driverId, currentLocation, activeRide, socket]);
 
-  // Conectarse / Desconectarse
   const toggleOnline = async () => {
     if (!driverId) return;
 
     if (driverState === 'offline') {
-      // Obtener GPS y conectarse
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
           const { latitude, longitude } = pos.coords;
@@ -131,8 +118,8 @@ export default function DriverPage() {
           setDriverState('available');
           startTracking();
         },
-        () => alert('Necesitas activar el GPS'),
-        { enableHighAccuracy: true },
+        () => alert('Necesitas activar el GPS para conectarte'),
+        { enableHighAccuracy: true, timeout: 10000 },
       );
     } else {
       await driverService.goOffline(driverId);
@@ -143,21 +130,20 @@ export default function DriverPage() {
     }
   };
 
-  // Aceptar viaje
   const acceptRide = async () => {
     if (!incomingRide || !driverId) return;
     try {
-      const ride = await driverService.acceptRide(incomingRide.id || incomingRide.ride?.id, driverId);
+      const rideId = incomingRide.id || incomingRide.ride?.id;
+      const ride = await driverService.acceptRide(rideId, driverId);
       setActiveRide(ride);
       setIncomingRide(null);
       setDriverState('arriving');
       joinRide(ride.id);
-    } catch (err) {
+    } catch {
       setIncomingRide(null);
     }
   };
 
-  // Avanzar estado del viaje
   const advanceState = async () => {
     if (!activeRide) return;
     const config = stateConfig[driverState];
@@ -167,38 +153,41 @@ export default function DriverPage() {
     setDriverState(config.next);
 
     if (config.next === 'completed') {
-      setTimeout(() => {
-        setActiveRide(null);
-        setDriverState('available');
-      }, 3000);
+      setTimeout(() => { setActiveRide(null); setDriverState('available'); }, 3000);
     }
   };
 
-  // Rechazar viaje
-  const rejectRide = () => setIncomingRide(null);
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-dark-500 flex items-center justify-center">
+        <p className="text-gray-400">Cargando panel de conductor...</p>
+      </div>
+    );
+  }
 
-  if (!isAuthenticated || user?.role?.name !== 'DRIVER') return null;
+  if (!driverId) {
+    return (
+      <div className="min-h-screen bg-dark-500 flex items-center justify-center p-6">
+        <div className="glass rounded-2xl p-8 text-center max-w-md">
+          <span className="text-4xl">⚠️</span>
+          <h2 className="text-white font-bold text-xl mt-4">Perfil de conductor no encontrado</h2>
+          <p className="text-gray-400 mt-2">Tu cuenta no tiene un perfil de conductor asociado. Contacta al administrador.</p>
+          <button onClick={() => router.push('/dashboard')} className="mt-6 gradient-primary text-white px-6 py-3 rounded-xl font-semibold">
+            Volver al Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const currentConfig = stateConfig[driverState];
 
-  // Markers para el mapa
-  const markers = [
-    ...(currentLocation ? [{ lat: currentLocation.lat, lng: currentLocation.lng, label: 'Tú', color: '#0ea5e9' }] : []),
-    ...(activeRide ? [
-      { lat: activeRide.originLat, lng: activeRide.originLat, label: 'Pasajero', color: '#22c55e' },
-      { lat: activeRide.destinationLat, lng: activeRide.destinationLng, label: 'Destino', color: '#ef4444' },
-    ] : []),
-  ];
-
-  // Fix markers for active ride
-  const rideMarkers = activeRide ? [
-    { lat: activeRide.originLat, lng: activeRide.originLng, label: 'Recoger', color: '#22c55e' },
-    { lat: activeRide.destinationLat, lng: activeRide.destinationLng, label: 'Destino', color: '#ef4444' },
-  ] : [];
-
   const allMarkers = [
     ...(currentLocation ? [{ lat: currentLocation.lat, lng: currentLocation.lng, label: 'Tú', color: '#0ea5e9' }] : []),
-    ...rideMarkers,
+    ...(activeRide ? [
+      { lat: activeRide.originLat, lng: activeRide.originLng, label: 'Recoger', color: '#22c55e' },
+      { lat: activeRide.destinationLat, lng: activeRide.destinationLng, label: 'Destino', color: '#ef4444' },
+    ] : []),
   ];
 
   return (
@@ -212,9 +201,15 @@ export default function DriverPage() {
           route={activeRide ? [[activeRide.originLat, activeRide.originLng], [activeRide.destinationLat, activeRide.destinationLng]] : undefined}
           driverLocation={currentLocation}
         />
-        {/* Status badge */}
+        {/* Back button */}
         <div className="absolute top-4 left-4 z-[1000]">
-          <div className={`${currentConfig.color} px-4 py-2 rounded-full text-white text-sm font-medium flex items-center gap-2`}>
+          <button onClick={() => router.push('/dashboard')} className="glass px-3 py-2 rounded-lg text-white text-sm hover:bg-white/10 transition-colors">
+            ← Volver
+          </button>
+        </div>
+        {/* Status badge */}
+        <div className="absolute top-4 right-4 z-[1000]">
+          <div className={`${currentConfig.color} px-4 py-2 rounded-full text-white text-sm font-medium flex items-center gap-2 shadow-lg`}>
             <span>{currentConfig.icon}</span>
             <span>{currentConfig.label}</span>
           </div>
@@ -236,20 +231,11 @@ export default function DriverPage() {
                 </p>
               </div>
             </div>
-            {incomingRide.price && (
-              <p className="text-primary-400 font-bold text-lg mb-3">${incomingRide.price || incomingRide.ride?.price}</p>
-            )}
             <div className="flex gap-3">
-              <button
-                onClick={acceptRide}
-                className="flex-1 gradient-primary text-white py-3 rounded-xl font-semibold"
-              >
+              <button onClick={acceptRide} className="flex-1 gradient-primary text-white py-3 rounded-xl font-semibold">
                 ✅ Aceptar
               </button>
-              <button
-                onClick={rejectRide}
-                className="flex-1 border border-red-500/30 text-red-400 py-3 rounded-xl font-medium"
-              >
+              <button onClick={() => setIncomingRide(null)} className="flex-1 border border-red-500/30 text-red-400 py-3 rounded-xl font-medium">
                 ❌ Rechazar
               </button>
             </div>
@@ -263,7 +249,7 @@ export default function DriverPage() {
               <p className="text-white font-semibold">Viaje activo</p>
               <span className="text-primary-400 font-bold">${activeRide.price}</span>
             </div>
-            <div className="space-y-1 mb-4">
+            <div className="space-y-1 mb-3">
               <div className="flex gap-2 items-center">
                 <span className="w-2 h-2 rounded-full bg-green-400" />
                 <p className="text-gray-300 text-sm truncate">{activeRide.originAddress}</p>
@@ -274,20 +260,15 @@ export default function DriverPage() {
               </div>
             </div>
             {activeRide.client && (
-              <p className="text-gray-400 text-sm">
-                Pasajero: {activeRide.client.firstName} {activeRide.client.lastName}
-              </p>
+              <p className="text-gray-400 text-sm">👤 {activeRide.client.firstName} {activeRide.client.lastName}</p>
             )}
           </div>
         )}
 
-        {/* State action button */}
+        {/* Advance state button */}
         {activeRide && currentConfig.next && (
-          <button
-            onClick={advanceState}
-            className="w-full gradient-primary text-white py-4 rounded-xl font-semibold text-lg"
-          >
-            {currentConfig.icon} {currentConfig.nextLabel}
+          <button onClick={advanceState} className="w-full gradient-primary text-white py-4 rounded-xl font-semibold text-lg">
+            {currentConfig.nextLabel}
           </button>
         )}
 
@@ -297,7 +278,7 @@ export default function DriverPage() {
             onClick={toggleOnline}
             className={`w-full py-4 rounded-xl font-semibold text-lg transition-all ${
               driverState === 'offline'
-                ? 'gradient-primary text-white'
+                ? 'gradient-primary text-white hover:opacity-90'
                 : 'border border-red-500/30 text-red-400 hover:bg-red-500/10'
             }`}
           >
@@ -309,9 +290,14 @@ export default function DriverPage() {
         {currentLocation && (
           <div className="glass rounded-xl p-3 flex items-center justify-between">
             <span className="text-gray-400 text-sm">📡 GPS activo</span>
-            <span className="text-gray-500 text-xs">
-              {currentLocation.lat.toFixed(4)}, {currentLocation.lng.toFixed(4)}
-            </span>
+            <span className="text-gray-500 text-xs">{currentLocation.lat.toFixed(4)}, {currentLocation.lng.toFixed(4)}</span>
+          </div>
+        )}
+
+        {/* No GPS warning when offline */}
+        {driverState === 'offline' && !currentLocation && (
+          <div className="glass rounded-xl p-4 text-center">
+            <p className="text-gray-400 text-sm">Toca "Conectarse" para activar GPS y recibir viajes</p>
           </div>
         )}
       </div>
