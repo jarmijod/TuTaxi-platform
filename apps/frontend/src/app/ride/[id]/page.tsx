@@ -3,9 +3,12 @@
 import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import dynamic from 'next/dynamic';
 import { ridesService } from '@/services/rides.service';
 import { useSocket } from '@/hooks/use-socket';
 import { useRideStore } from '@/store/ride.store';
+
+const Map = dynamic(() => import('@/components/map/map').then((m) => m.Map), { ssr: false });
 
 const statusLabels: Record<string, { label: string; color: string; icon: string }> = {
   SEARCHING_DRIVER: { label: 'Buscando conductor', color: 'text-yellow-400', icon: '🔍' },
@@ -49,73 +52,76 @@ export default function RideTrackingPage() {
   const status = statusLabels[ride.status] || statusLabels.SEARCHING_DRIVER;
   const isActive = !['COMPLETED', 'CANCELLED'].includes(ride.status);
 
+  const markers = [
+    { lat: ride.originLat, lng: ride.originLng, label: 'Origen', color: '#22c55e' },
+    { lat: ride.destinationLat, lng: ride.destinationLng, label: 'Destino', color: '#ef4444' },
+  ];
+
+  const route: [number, number][] = [
+    [ride.originLat, ride.originLng],
+    [ride.destinationLat, ride.destinationLng],
+  ];
+
   return (
-    <div className="min-h-screen bg-dark-500 p-6">
-      <div className="max-w-2xl mx-auto">
-        {/* Map area */}
-        <div className="glass rounded-2xl h-56 mb-6 flex items-center justify-center relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-primary-900/20 to-dark-500" />
-          <div className="relative text-center">
-            <span className="text-5xl">{status.icon}</span>
-            {driverLocation && (
-              <p className="text-gray-400 text-xs mt-2">
-                Driver: {driverLocation.lat.toFixed(4)}, {driverLocation.lng.toFixed(4)}
-              </p>
-            )}
-          </div>
+    <div className="min-h-screen bg-dark-500 flex flex-col">
+      {/* Map */}
+      <div className="h-[40vh] relative">
+        <Map
+          center={[ride.originLat, ride.originLng]}
+          zoom={13}
+          markers={markers}
+          route={route}
+          driverLocation={driverLocation}
+        />
+        <div className="absolute top-4 left-4 z-[1000]">
+          <button onClick={() => router.push('/dashboard')} className="glass px-3 py-2 rounded-lg text-white text-sm">
+            ← Dashboard
+          </button>
         </div>
+      </div>
 
+      {/* Info Panel */}
+      <div className="flex-1 p-6 -mt-6 relative z-10 space-y-4">
         {/* Status */}
-        <div className="glass rounded-2xl p-6 mb-4">
-          <div className="flex items-center gap-3 mb-4">
+        <div className="glass rounded-2xl p-5">
+          <div className="flex items-center gap-3 mb-3">
             <span className="text-2xl">{status.icon}</span>
-            <div>
-              <p className={`font-semibold ${status.color}`}>{status.label}</p>
-              <p className="text-gray-500 text-sm">ID: {ride.id.slice(0, 8)}...</p>
-            </div>
+            <p className={`font-semibold text-lg ${status.color}`}>{status.label}</p>
           </div>
-
-          {/* Route info */}
-          <div className="space-y-2 border-t border-white/10 pt-4">
-            <div className="flex gap-2">
-              <span className="text-green-400">●</span>
-              <p className="text-gray-300 text-sm">{ride.originAddress}</p>
+          <div className="space-y-1">
+            <div className="flex gap-2 items-center">
+              <span className="w-2 h-2 rounded-full bg-green-400" />
+              <p className="text-gray-300 text-sm truncate">{ride.originAddress}</p>
             </div>
-            <div className="flex gap-2">
-              <span className="text-red-400">●</span>
-              <p className="text-gray-300 text-sm">{ride.destinationAddress}</p>
+            <div className="flex gap-2 items-center">
+              <span className="w-2 h-2 rounded-full bg-red-400" />
+              <p className="text-gray-300 text-sm truncate">{ride.destinationAddress}</p>
             </div>
           </div>
         </div>
 
-        {/* Driver info */}
+        {/* Driver */}
         {ride.driver && (
-          <div className="glass rounded-2xl p-6 mb-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full gradient-primary flex items-center justify-center">
-                <span className="text-white font-bold">
-                  {ride.driver.user.firstName[0]}
-                </span>
-              </div>
-              <div className="flex-1">
-                <p className="text-white font-semibold">
-                  {ride.driver.user.firstName} {ride.driver.user.lastName}
-                </p>
-                {ride.driver.vehicles?.[0] && (
-                  <p className="text-gray-400 text-sm">
-                    {ride.driver.vehicles[0].brand} {ride.driver.vehicles[0].model} • {ride.driver.vehicles[0].plateNumber}
-                  </p>
-                )}
-              </div>
-              <div className="text-right">
-                <p className="text-yellow-400">⭐ {ride.driver.rating}</p>
-              </div>
+          <div className="glass rounded-2xl p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full gradient-primary flex items-center justify-center shrink-0">
+              <span className="text-white font-bold">{ride.driver.user.firstName[0]}</span>
             </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-semibold truncate">
+                {ride.driver.user.firstName} {ride.driver.user.lastName}
+              </p>
+              {ride.driver.vehicles?.[0] && (
+                <p className="text-gray-400 text-sm truncate">
+                  {ride.driver.vehicles[0].brand} {ride.driver.vehicles[0].model} • {ride.driver.vehicles[0].plateNumber}
+                </p>
+              )}
+            </div>
+            <span className="text-yellow-400 text-sm">⭐ {ride.driver.rating}</span>
           </div>
         )}
 
         {/* Price */}
-        <div className="glass rounded-2xl p-6 mb-4">
+        <div className="glass rounded-2xl p-5">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <p className="text-gray-400 text-xs">Distancia</p>
@@ -127,7 +133,7 @@ export default function RideTrackingPage() {
             </div>
             <div>
               <p className="text-gray-400 text-xs">Precio</p>
-              <p className="text-primary-400 font-bold">${ride.price}</p>
+              <p className="text-primary-400 font-bold text-lg">${ride.price}</p>
             </div>
           </div>
         </div>
