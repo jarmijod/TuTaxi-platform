@@ -59,6 +59,17 @@ export class AuthService {
         include: { role: true },
       });
 
+      // Si es conductor, crear perfil de driver automáticamente
+      if (role.name === 'DRIVER') {
+        await this.prisma.driver.create({
+          data: {
+            userId: user.id,
+            licenseNumber: `DL-${Date.now()}`,
+            status: 'OFFLINE',
+          },
+        });
+      }
+
       const tokens = await this.generateTokens(user.id, user.email, role.name);
       await this.saveRefreshToken(user.id, tokens.refreshToken);
 
