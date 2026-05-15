@@ -10,6 +10,7 @@ interface User {
   avatar?: string;
   status: string;
   role: { name: string; permissions: string[] };
+  driver?: { id: string; status: string; rating: number; totalTrips: number };
 }
 
 interface AuthState {

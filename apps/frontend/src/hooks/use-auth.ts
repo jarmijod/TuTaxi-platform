@@ -9,8 +9,13 @@ export function useLogin() {
 
   return useMutation({
     mutationFn: (data: LoginPayload) => authService.login(data),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       setAuth(data.user, data.accessToken, data.refreshToken);
+      // Cargar perfil completo (incluye driver)
+      try {
+        const profile = await authService.getProfile();
+        useAuthStore.getState().setUser(profile);
+      } catch {}
       router.push('/dashboard');
     },
   });
@@ -22,8 +27,12 @@ export function useRegister() {
 
   return useMutation({
     mutationFn: (data: RegisterPayload) => authService.register(data),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       setAuth(data.user, data.accessToken, data.refreshToken);
+      try {
+        const profile = await authService.getProfile();
+        useAuthStore.getState().setUser(profile);
+      } catch {}
       router.push('/dashboard');
     },
   });
@@ -43,11 +52,15 @@ export function useLogout() {
 }
 
 export function useProfile() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, setUser } = useAuthStore();
 
   return useQuery({
     queryKey: ['profile'],
-    queryFn: () => authService.getProfile(),
+    queryFn: async () => {
+      const profile = await authService.getProfile();
+      setUser(profile);
+      return profile;
+    },
     enabled: isAuthenticated,
   });
 }

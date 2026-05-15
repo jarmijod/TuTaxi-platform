@@ -7,6 +7,7 @@ import { useLogout } from '@/hooks/use-auth';
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const { mutate: logout } = useLogout();
+  const isDriver = user?.role?.name === 'DRIVER';
 
   return (
     <div className="min-h-screen bg-dark-500 p-6">
@@ -35,7 +36,7 @@ export default function DashboardPage() {
             <div>
               <h1 className="text-2xl font-bold text-white">Hola, {user?.firstName} 👋</h1>
               <p className="text-gray-400">
-                {user?.role?.name === 'DRIVER' ? 'Conductor' : user?.role?.name === 'ADMIN' ? 'Administrador' : 'Pasajero'}
+                {isDriver ? 'Conductor' : user?.role?.name === 'ADMIN' ? 'Administrador' : 'Pasajero'}
               </p>
             </div>
           </div>
@@ -43,21 +44,43 @@ export default function DashboardPage() {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <Link href="/request-ride" className="glass rounded-2xl p-6 hover:bg-white/10 transition-all group">
-            <span className="text-3xl">🚕</span>
-            <h3 className="text-white font-semibold mt-3 group-hover:text-primary-400 transition-colors">
-              Solicitar Viaje
-            </h3>
-            <p className="text-gray-400 text-sm mt-1">Pide un taxi ahora</p>
-          </Link>
+          {isDriver ? (
+            <>
+              <Link href="/driver" className="glass rounded-2xl p-6 hover:bg-white/10 transition-all group border border-primary-500/20">
+                <span className="text-3xl">🚗</span>
+                <h3 className="text-white font-semibold mt-3 group-hover:text-primary-400 transition-colors">
+                  Panel de Conductor
+                </h3>
+                <p className="text-gray-400 text-sm mt-1">Conectarse y recibir viajes</p>
+              </Link>
 
-          <Link href="/history" className="glass rounded-2xl p-6 hover:bg-white/10 transition-all group">
-            <span className="text-3xl">📋</span>
-            <h3 className="text-white font-semibold mt-3 group-hover:text-primary-400 transition-colors">
-              Historial
-            </h3>
-            <p className="text-gray-400 text-sm mt-1">Ver viajes anteriores</p>
-          </Link>
+              <Link href="/history" className="glass rounded-2xl p-6 hover:bg-white/10 transition-all group">
+                <span className="text-3xl">📋</span>
+                <h3 className="text-white font-semibold mt-3 group-hover:text-primary-400 transition-colors">
+                  Mis Viajes
+                </h3>
+                <p className="text-gray-400 text-sm mt-1">Historial de viajes realizados</p>
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link href="/request-ride" className="glass rounded-2xl p-6 hover:bg-white/10 transition-all group">
+                <span className="text-3xl">🚕</span>
+                <h3 className="text-white font-semibold mt-3 group-hover:text-primary-400 transition-colors">
+                  Solicitar Viaje
+                </h3>
+                <p className="text-gray-400 text-sm mt-1">Pide un taxi ahora</p>
+              </Link>
+
+              <Link href="/history" className="glass rounded-2xl p-6 hover:bg-white/10 transition-all group">
+                <span className="text-3xl">📋</span>
+                <h3 className="text-white font-semibold mt-3 group-hover:text-primary-400 transition-colors">
+                  Historial
+                </h3>
+                <p className="text-gray-400 text-sm mt-1">Ver viajes anteriores</p>
+              </Link>
+            </>
+          )}
 
           <Link href="/profile" className="glass rounded-2xl p-6 hover:bg-white/10 transition-all group">
             <span className="text-3xl">👤</span>
