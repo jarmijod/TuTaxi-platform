@@ -8,6 +8,7 @@ import { RideStatus } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { PricingService } from '../pricing/pricing.service';
 import { MatchingService } from '../matching/matching.service';
+import { RidesGateway } from '../sockets/rides.gateway';
 import { RequestRideDto, CancelRideDto } from './dto/rides.dto';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class RidesService {
     private readonly prisma: PrismaService,
     private readonly pricing: PricingService,
     private readonly matching: MatchingService,
+    private readonly ridesGateway: RidesGateway,
   ) {}
 
   async requestRide(clientId: string, dto: RequestRideDto) {
@@ -43,13 +45,39 @@ export class RidesService {
 
     await this.addStatusHistory(ride.id, 'SEARCHING_DRIVER');
 
-    // Find nearby drivers
+    // Find nearby available drivers (2km radius)
     const nearbyDrivers = await this.matching.findNearbyDrivers(
       dto.originLat,
       dto.originLng,
     );
 
+    // Notify nearby drivers via WebSocket
+    if (nearbyDrivers.length > 0) {
+      const driverUserIds = await this.getDriverUserIds(
+        nearbyDrivers.map((d) => d.driverId),
+      );
+      this.ridesGateway.emitRideRequested(driverUserIds, {
+        id: ride.id,
+        originAddress: ride.originAddress,
+        destinationAddress: ride.destinationAddress,
+        originLat: ride.originLat,
+        originLng: ride.originLng,
+        distance: estimate.distance,
+        duration: estimate.duration,
+        price: estimate.price,
+        client: ride.client,
+      });
+    }
+
     return { ride, estimate, nearbyDrivers: nearbyDrivers.length };
+  }
+
+  private async getDriverUserIds(driverIds: string[]): Promise<string[]> {
+    const drivers = await this.prisma.driver.findMany({
+      where: { id: { in: driverIds } },
+      select: { userId: true },
+    });
+    return drivers.map((d) => d.userId);
   }
 
   async acceptRide(rideId: string, driverId: string) {
@@ -58,8 +86,18 @@ export class RidesService {
       throw new BadRequestException('Ride is no longer available');
     }
 
+    // Verify driver is available
+    const driver = await this.prisma.driver.findUnique({ where: { id: driverId } });
+    if (!driver || driver.status !== 'AVAILABLE') {
+      throw new BadRequestException('Driver is not available');
+    }
+
     const updated = await this.matching.assignDriver(rideId, driverId);
     await this.addStatusHistory(rideId, 'DRIVER_ASSIGNED');
+
+    // Notify client via WebSocket
+    this.ridesGateway.emitRideAccepted(rideId, updated);
+
     return updated;
   }
 
@@ -90,6 +128,10 @@ export class RidesService {
     });
 
     await this.addStatusHistory(rideId, status);
+
+    // Notify via WebSocket
+    this.ridesGateway.emitRideStatusUpdate(rideId, status.toLowerCase(), updated);
+
     return updated;
   }
 
@@ -117,6 +159,10 @@ export class RidesService {
     });
 
     await this.addStatusHistory(rideId, 'CANCELLED');
+
+    // Notify via WebSocket
+    this.ridesGateway.emitRideCancelled(rideId, updated);
+
     return updated;
   }
 

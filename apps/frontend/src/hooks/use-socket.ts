@@ -1,11 +1,16 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/store/auth.store';
 import { useRideStore } from '@/store/ride.store';
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:3001';
+function getSocketUrl() {
+  if (typeof window !== 'undefined') {
+    return `${window.location.protocol}//${window.location.hostname}:3001`;
+  }
+  return 'http://localhost:3001';
+}
 
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
@@ -15,9 +20,12 @@ export function useSocket() {
   useEffect(() => {
     if (!user || !accessToken) return;
 
-    const socket = io(`${SOCKET_URL}/rides`, {
+    const socket = io(`${getSocketUrl()}/rides`, {
       query: { userId: user.id },
       auth: { token: accessToken },
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
     });
 
     socket.on('ride:driver_location', (data) => {
@@ -28,16 +36,17 @@ export function useSocket() {
 
     return () => {
       socket.disconnect();
+      socketRef.current = null;
     };
-  }, [user, accessToken, setDriverLocation]);
+  }, [user?.id, accessToken]);
 
-  const joinRide = (rideId: string) => {
+  const joinRide = useCallback((rideId: string) => {
     socketRef.current?.emit('join:ride', rideId);
-  };
+  }, []);
 
-  const leaveRide = (rideId: string) => {
+  const leaveRide = useCallback((rideId: string) => {
     socketRef.current?.emit('leave:ride', rideId);
-  };
+  }, []);
 
   return { socket: socketRef.current, joinRide, leaveRide };
 }

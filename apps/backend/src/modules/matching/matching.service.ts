@@ -12,7 +12,7 @@ interface DriverLocation {
 
 @Injectable()
 export class MatchingService {
-  private readonly MAX_RADIUS_KM = 5;
+  private readonly MAX_RADIUS_KM = 2;
 
   constructor(
     private readonly prisma: PrismaService,
