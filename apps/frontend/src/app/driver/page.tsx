@@ -15,10 +15,10 @@ type DriverState = 'offline' | 'available' | 'arriving' | 'waiting' | 'in_progre
 const stateConfig: Record<DriverState, { label: string; color: string; icon: string; next?: DriverState; nextLabel?: string; rideStatus?: string }> = {
   offline: { label: 'Desconectado', color: 'bg-gray-600', icon: '⏸️' },
   available: { label: 'Disponible', color: 'bg-green-600', icon: '✅' },
-  arriving: { label: 'En camino a recoger', color: 'bg-blue-600', icon: '🚗', next: 'waiting', nextLabel: 'Llegué al punto', rideStatus: 'WAITING_PASSENGER' },
-  waiting: { label: 'Esperando pasajero', color: 'bg-orange-600', icon: '⏳', next: 'in_progress', nextLabel: 'Pasajero recogido', rideStatus: 'IN_PROGRESS' },
-  in_progress: { label: 'En camino al destino', color: 'bg-purple-600', icon: '🛣️', next: 'completed', nextLabel: 'Viaje finalizado', rideStatus: 'COMPLETED' },
-  completed: { label: 'Viaje finalizado', color: 'bg-green-700', icon: '🎉' },
+  arriving: { label: 'Ir a recoger pasajero', color: 'bg-blue-600', icon: '🚗', next: 'waiting', nextLabel: '📍 Llegué al punto de recogida', rideStatus: 'WAITING_PASSENGER' },
+  waiting: { label: 'Esperando al pasajero', color: 'bg-orange-600', icon: '⏳', next: 'in_progress', nextLabel: '👤 Pasajero a bordo - Iniciar viaje', rideStatus: 'IN_PROGRESS' },
+  in_progress: { label: 'Rumbo al destino', color: 'bg-purple-600', icon: '🛣️', next: 'completed', nextLabel: '🏁 Viaje finalizado', rideStatus: 'COMPLETED' },
+  completed: { label: 'Viaje completado', color: 'bg-green-700', icon: '🎉' },
 };
 
 export default function DriverPage() {
@@ -147,6 +147,8 @@ export default function DriverPage() {
     try {
       const rideId = incomingRide.id || incomingRide.ride?.id;
       const ride = await driverService.acceptRide(rideId, driverId);
+      // Cambiar a DRIVER_ARRIVING inmediatamente
+      await driverService.updateRideStatus(ride.id, 'DRIVER_ARRIVING');
       setActiveRide(ride);
       setIncomingRide(null);
       setDriverState('arriving');
@@ -261,27 +263,88 @@ export default function DriverPage() {
               <p className="text-white font-semibold">Viaje activo</p>
               <span className="text-primary-400 font-bold">${activeRide.price}</span>
             </div>
-            <div className="space-y-1 mb-3">
+
+            {/* Progress steps */}
+            <div className="flex items-center gap-1 mb-4">
+              {['arriving', 'waiting', 'in_progress', 'completed'].map((s, i) => (
+                <div key={s} className="flex-1 flex items-center">
+                  <div className={`h-1.5 w-full rounded-full ${
+                    ['arriving', 'waiting', 'in_progress', 'completed'].indexOf(driverState) >= i
+                      ? 'bg-primary-500'
+                      : 'bg-gray-700'
+                  }`} />
+                </div>
+              ))}
+            </div>
+
+            {/* Current instruction */}
+            <div className="bg-white/5 rounded-xl p-4 mb-3">
+              <p className="text-primary-400 text-xs font-medium uppercase mb-1">Instrucción</p>
+              <p className="text-white font-medium">
+                {driverState === 'arriving' && '🚗 Dirígete al punto de recogida del pasajero'}
+                {driverState === 'waiting' && '⏳ Espera a que el pasajero suba al vehículo'}
+                {driverState === 'in_progress' && '🛣️ Lleva al pasajero a su destino'}
+                {driverState === 'completed' && '🎉 ¡Viaje completado con éxito!'}
+              </p>
+            </div>
+
+            {/* Route info */}
+            <div className="space-y-2 mb-3">
               <div className="flex gap-2 items-center">
-                <span className="w-2 h-2 rounded-full bg-green-400" />
-                <p className="text-gray-300 text-sm truncate">{activeRide.originAddress}</p>
+                <span className="w-3 h-3 rounded-full bg-green-400 border-2 border-green-600" />
+                <div className="flex-1">
+                  <p className="text-gray-500 text-xs">Recoger en</p>
+                  <p className="text-gray-300 text-sm truncate">{activeRide.originAddress}</p>
+                </div>
               </div>
+              <div className="border-l-2 border-dashed border-gray-600 ml-1.5 h-3" />
               <div className="flex gap-2 items-center">
-                <span className="w-2 h-2 rounded-full bg-red-400" />
-                <p className="text-gray-300 text-sm truncate">{activeRide.destinationAddress}</p>
+                <span className="w-3 h-3 rounded-full bg-red-400 border-2 border-red-600" />
+                <div className="flex-1">
+                  <p className="text-gray-500 text-xs">Destino</p>
+                  <p className="text-gray-300 text-sm truncate">{activeRide.destinationAddress}</p>
+                </div>
               </div>
             </div>
+
+            {/* Client info */}
             {activeRide.client && (
-              <p className="text-gray-400 text-sm">👤 {activeRide.client.firstName} {activeRide.client.lastName}</p>
+              <div className="flex items-center gap-3 pt-3 border-t border-white/10">
+                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">
+                    {activeRide.client.firstName?.[0]}{activeRide.client.lastName?.[0]}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-white text-sm font-medium">{activeRide.client.firstName} {activeRide.client.lastName}</p>
+                  {activeRide.client.phone && <p className="text-gray-400 text-xs">{activeRide.client.phone}</p>}
+                </div>
+              </div>
             )}
           </div>
         )}
 
         {/* Advance state button */}
         {activeRide && currentConfig.next && (
-          <button onClick={advanceState} className="w-full gradient-primary text-white py-4 rounded-xl font-semibold text-lg">
+          <button
+            onClick={advanceState}
+            className={`w-full py-4 rounded-xl font-semibold text-lg transition-all ${
+              driverState === 'in_progress'
+                ? 'bg-green-600 hover:bg-green-700 text-white'
+                : 'gradient-primary text-white hover:opacity-90'
+            }`}
+          >
             {currentConfig.nextLabel}
           </button>
+        )}
+
+        {/* Completed message */}
+        {driverState === 'completed' && (
+          <div className="glass rounded-2xl p-6 text-center border border-green-500/20">
+            <span className="text-4xl">🎉</span>
+            <p className="text-white font-semibold mt-3">¡Viaje completado!</p>
+            <p className="text-gray-400 text-sm mt-1">Volviendo a disponible...</p>
+          </div>
         )}
 
         {/* Online/Offline toggle */}
