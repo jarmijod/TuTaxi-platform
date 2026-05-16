@@ -25,6 +25,7 @@ export default function RequestRidePage() {
   const [destination, setDestination] = useState<Location>({ address: '', lat: 0, lng: 0 });
   const [step, setStep] = useState<'origin' | 'destination'>('origin');
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number]>([40.4168, -3.7038]);
 
   const stepRef = useRef(step);
@@ -32,8 +33,13 @@ export default function RequestRidePage() {
 
   // GPS: obtener ubicación actual al cargar
   useEffect(() => {
-    if (!navigator.geolocation) return;
+    if (typeof window === 'undefined') return;
+    if (!navigator.geolocation) {
+      setGpsError('GPS no disponible en este navegador');
+      return;
+    }
     setGpsLoading(true);
+    setGpsError(null);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords;
@@ -42,8 +48,13 @@ export default function RequestRidePage() {
         setStep('destination');
         setGpsLoading(false);
       },
-      () => setGpsLoading(false),
-      { enableHighAccuracy: true, timeout: 10000 },
+      (err) => {
+        setGpsLoading(false);
+        if (err.code === 1) setGpsError('Permiso GPS denegado. Toca el mapa para seleccionar.');
+        else if (err.code === 2) setGpsError('GPS no disponible. Toca el mapa para seleccionar.');
+        else setGpsError('No se pudo obtener ubicación. Toca el mapa.');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
     );
   }, []);
 
@@ -116,6 +127,11 @@ export default function RequestRidePage() {
             📡 Obteniendo tu ubicación...
           </div>
         )}
+        {gpsError && !gpsLoading && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] glass px-4 py-2 rounded-lg text-yellow-400 text-sm max-w-[90%] text-center">
+            ⚠️ {gpsError}
+          </div>
+        )}
       </div>
 
       {/* Panel */}
@@ -137,12 +153,23 @@ export default function RequestRidePage() {
               />
               <button
                 onClick={() => {
-                  navigator.geolocation?.getCurrentPosition((pos) => {
-                    const { latitude, longitude } = pos.coords;
-                    setOrigin({ address: `Mi ubicación`, lat: latitude, lng: longitude });
-                    setMapCenter([latitude, longitude]);
-                    setStep('destination');
-                  });
+                  setGpsError(null);
+                  setGpsLoading(true);
+                  navigator.geolocation?.getCurrentPosition(
+                    (pos) => {
+                      const { latitude, longitude } = pos.coords;
+                      setOrigin({ address: `Mi ubicación (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`, lat: latitude, lng: longitude });
+                      setMapCenter([latitude, longitude]);
+                      setStep('destination');
+                      setGpsLoading(false);
+                      setGpsError(null);
+                    },
+                    (err) => {
+                      setGpsLoading(false);
+                      setGpsError('No se pudo obtener GPS. Selecciona en el mapa.');
+                    },
+                    { enableHighAccuracy: true, timeout: 15000 },
+                  );
                 }}
                 className="glass px-3 rounded-lg text-primary-400 hover:bg-white/10 transition-colors"
                 title="Usar mi ubicación"

@@ -33,6 +33,8 @@ export default function DriverPage() {
   const [driverId, setDriverId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [gpsError, setGpsError] = useState<string | null>(null);
+
   const watchRef = useRef<number | null>(null);
   const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -110,6 +112,11 @@ export default function DriverPage() {
     if (!driverId) return;
 
     if (driverState === 'offline') {
+      if (!navigator.geolocation) {
+        setGpsError('GPS no disponible en este navegador');
+        return;
+      }
+      setGpsError(null);
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
           const { latitude, longitude } = pos.coords;
@@ -117,9 +124,14 @@ export default function DriverPage() {
           await driverService.goOnline(driverId, latitude, longitude);
           setDriverState('available');
           startTracking();
+          setGpsError(null);
         },
-        () => alert('Necesitas activar el GPS para conectarte'),
-        { enableHighAccuracy: true, timeout: 10000 },
+        (err) => {
+          if (err.code === 1) setGpsError('Permiso GPS denegado. Actívalo en la configuración del navegador.');
+          else if (err.code === 2) setGpsError('GPS no disponible. Verifica que esté activado.');
+          else setGpsError('No se pudo obtener ubicación. Intenta de nuevo.');
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
       );
     } else {
       await driverService.goOffline(driverId);
@@ -294,8 +306,15 @@ export default function DriverPage() {
           </div>
         )}
 
+        {/* GPS error */}
+        {gpsError && (
+          <div className="glass rounded-xl p-4 border border-yellow-500/30">
+            <p className="text-yellow-400 text-sm">⚠️ {gpsError}</p>
+          </div>
+        )}
+
         {/* No GPS warning when offline */}
-        {driverState === 'offline' && !currentLocation && (
+        {driverState === 'offline' && !currentLocation && !gpsError && (
           <div className="glass rounded-xl p-4 text-center">
             <p className="text-gray-400 text-sm">Toca "Conectarse" para activar GPS y recibir viajes</p>
           </div>
