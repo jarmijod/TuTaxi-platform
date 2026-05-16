@@ -35,7 +35,7 @@ export default function RequestRidePage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!navigator.geolocation) {
-      setGpsError('GPS no disponible en este navegador');
+      setGpsError('GPS no disponible. Selecciona en el mapa.');
       return;
     }
     setGpsLoading(true);
@@ -48,13 +48,11 @@ export default function RequestRidePage() {
         setStep('destination');
         setGpsLoading(false);
       },
-      (err) => {
+      () => {
         setGpsLoading(false);
-        if (err.code === 1) setGpsError('Permiso GPS denegado. Toca el mapa para seleccionar.');
-        else if (err.code === 2) setGpsError('GPS no disponible. Toca el mapa para seleccionar.');
-        else setGpsError('No se pudo obtener ubicación. Toca el mapa.');
+        setGpsError('GPS no disponible. Toca el mapa para seleccionar origen.');
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
     );
   }, []);
 
@@ -164,11 +162,11 @@ export default function RequestRidePage() {
                       setGpsLoading(false);
                       setGpsError(null);
                     },
-                    (err) => {
+                    () => {
                       setGpsLoading(false);
-                      setGpsError('No se pudo obtener GPS. Selecciona en el mapa.');
+                      setGpsError('GPS no disponible. Selecciona en el mapa.');
                     },
-                    { enableHighAccuracy: true, timeout: 15000 },
+                    { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
                   );
                 }}
                 className="glass px-3 rounded-lg text-primary-400 hover:bg-white/10 transition-colors"

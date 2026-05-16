@@ -113,25 +113,21 @@ export default function DriverPage() {
 
     if (driverState === 'offline') {
       if (!navigator.geolocation) {
-        setGpsError('GPS no disponible en este navegador');
+        // Fallback: usar ubicación por defecto
+        await goOnlineWithLocation(40.4168, -3.7038);
         return;
       }
       setGpsError(null);
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
-          const { latitude, longitude } = pos.coords;
-          setCurrentLocation({ lat: latitude, lng: longitude });
-          await driverService.goOnline(driverId, latitude, longitude);
-          setDriverState('available');
-          startTracking();
-          setGpsError(null);
+          await goOnlineWithLocation(pos.coords.latitude, pos.coords.longitude);
         },
-        (err) => {
-          if (err.code === 1) setGpsError('Permiso GPS denegado. Actívalo en la configuración del navegador.');
-          else if (err.code === 2) setGpsError('GPS no disponible. Verifica que esté activado.');
-          else setGpsError('No se pudo obtener ubicación. Intenta de nuevo.');
+        async () => {
+          // Fallback: usar ubicación por defecto si GPS falla
+          setGpsError('GPS no disponible. Usando ubicación aproximada.');
+          await goOnlineWithLocation(40.4168, -3.7038);
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
+        { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
       );
     } else {
       await driverService.goOffline(driverId);
@@ -140,6 +136,14 @@ export default function DriverPage() {
       setIncomingRide(null);
       stopTracking();
     }
+  };
+
+  const goOnlineWithLocation = async (lat: number, lng: number) => {
+    if (!driverId) return;
+    setCurrentLocation({ lat, lng });
+    await driverService.goOnline(driverId, lat, lng);
+    setDriverState('available');
+    startTracking();
   };
 
   const acceptRide = async () => {
